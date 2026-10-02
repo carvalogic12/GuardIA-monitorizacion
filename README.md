@@ -166,6 +166,22 @@ el marcador `# guardia-monitor:` de `instalar.sh` para esta carpeta.
 El instalador pide el **ID del chat destino** (`telegram_chat_id`), distinto del
 token del bot (`telegram_bot_token`).
 
+El subproyecto incluye un comando que lista los chats sin mostrar el token:
+
+```bash
+cd monitorizacion
+python3 obtener_chat_ids.py
+```
+
+También puede obtener el token de una variable de entorno y producir JSON:
+
+```bash
+TELEGRAM_BOT_TOKEN='<token>' python3 obtener_chat_ids.py --json
+```
+
+No se acepta el token como argumento para evitar que aparezca en la lista de
+procesos. Si no se define la variable, el script lo solicita mediante entrada oculta.
+
 1. Si aún no tienes bot, créalo con `/newbot` en
    [@BotFather](https://t.me/BotFather) y guarda el token que te entrega.
 2. Para recibir avisos en **privado**, abre una conversación con tu bot y envía
