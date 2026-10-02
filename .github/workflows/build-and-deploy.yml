@@ -16,8 +16,10 @@ permissions:
 env:
   REGISTRY: carvalogic.ddns.net:15000
   IMAGE_NAME: monitor
-  DEPLOY_HOST_1: srv-guardia-01
-  DEPLOY_HOST_2: srv-guardia-02
+  DEPLOY_HOST_1: 31.70.128.217
+  DEPLOY_HOST_2: 31.70.128.80
+  DEPLOY_HOST_ALIAS_1: srv-guardia-01
+  DEPLOY_HOST_ALIAS_2: srv-guardia-02
   DEPLOY_USER: guardia
   DEPLOY_PATH: /home/guardia
   COMPOSE_SERVICE: monitor
@@ -148,17 +150,19 @@ jobs:
         shell: bash
         env:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST_1 }}
+          DEPLOY_HOST_ALIAS: ${{ env.DEPLOY_HOST_ALIAS_1 }}
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
           IMAGE_REF: ${{ needs.build_and_push.outputs.image }}
         run: |
-          scp deploy/docker-compose.monitor.yml \
+          scp -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" deploy/docker-compose.monitor.yml \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/docker-compose.monitor.yml.new"
-          scp "$RUNNER_TEMP/monitor.env" \
+          scp -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" "$RUNNER_TEMP/monitor.env" \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/.env.monitor.new"
-          printf '%s' "$REGISTRY_PASSWORD" | ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+          printf '%s' "$REGISTRY_PASSWORD" | ssh -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
             docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s -- \
+          ssh -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s -- \
             "$DEPLOY_PATH" "$COMPOSE_SERVICE" "$IMAGE_REF" <<'REMOTE'
           set -euo pipefail
           cd "$1"
@@ -181,17 +185,19 @@ jobs:
         shell: bash
         env:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST_2 }}
+          DEPLOY_HOST_ALIAS: ${{ env.DEPLOY_HOST_ALIAS_2 }}
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
           IMAGE_REF: ${{ needs.build_and_push.outputs.image }}
         run: |
-          scp deploy/docker-compose.monitor.yml \
+          scp -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" deploy/docker-compose.monitor.yml \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/docker-compose.monitor.yml.new"
-          scp "$RUNNER_TEMP/monitor.env" \
+          scp -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" "$RUNNER_TEMP/monitor.env" \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/.env.monitor.new"
-          printf '%s' "$REGISTRY_PASSWORD" | ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+          printf '%s' "$REGISTRY_PASSWORD" | ssh -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
             docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s -- \
+          ssh -o "HostKeyAlias=${DEPLOY_HOST_ALIAS}" "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s -- \
             "$DEPLOY_PATH" "$COMPOSE_SERVICE" "$IMAGE_REF" <<'REMOTE'
           set -euo pipefail
           cd "$1"

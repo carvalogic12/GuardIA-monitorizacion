@@ -78,6 +78,11 @@ el despliegue principal debe encontrarse en `/home/guardia`. El workflow instala
 principal no necesita contener previamente el servicio `monitor`, pero sí debe definir
 la red `guardia-node` y los servicios que se van a supervisar.
 
+Los runners de GitHub conectan mediante las IP públicas `31.70.128.217` y
+`31.70.128.80`, usando respectivamente `srv-guardia-01` y `srv-guardia-02` como
+`HostKeyAlias`. De este modo `SSH_KNOWN_HOSTS` conserva los nombres de servidor y la
+verificación de identidad no depende de que el runner resuelva nombres DNS internos.
+
 ## Instalación
 
 ### Instalación automática
