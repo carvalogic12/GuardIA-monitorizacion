@@ -1,0 +1,12 @@
+services:
+  monitor:
+    image: ${MONITOR_IMAGE:-carvalogic.ddns.net:15000/monitor:latest}
+    env_file:
+      - .env.monitor
+    command: ["--config", "/app/config.docker.json", "--loop-seconds", "${MONITOR_INTERVAL_SECONDS:-60}"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./:/deployment:ro
+      - ./datos/monitor:/data
+    restart: unless-stopped
+    networks: [guardia-node]

@@ -43,6 +43,36 @@ siguiente. Montar el socket Docker concede al contenedor control equivalente al 
 daemon aunque el bind se marque como solo lectura; la imagen debe tratarse como un
 componente privilegiado y no ejecutar código ajeno.
 
+## Despliegue automático en IONOS
+
+`.github/workflows/build-and-deploy.yml` se ejecuta al actualizar la rama
+`produccion` o manualmente mediante `workflow_dispatch`. El flujo:
+
+1. ejecuta las pruebas unitarias;
+2. construye la imagen para `linux/amd64`;
+3. publica `carvalogic.ddns.net:15000/monitor:<commit>` y `:latest`;
+4. despliega y verifica primero `srv-guardia-01`;
+5. solo si el primer nodo termina correctamente, despliega `srv-guardia-02`.
+
+El entorno de GitHub `Compilacion_Self_hosted` debe proporcionar:
+
+```text
+REGISTRY_USERNAME
+REGISTRY_PASSWORD
+SSH_PRIVATE_KEY
+SSH_KNOWN_HOSTS
+MONITOR_TELEGRAM_BOT_TOKEN
+MONITOR_TELEGRAM_CHAT_ID
+```
+
+`SSH_KNOWN_HOSTS` debe contener las claves de ambos nombres de servidor. La clave
+privada debe permitir al usuario `guardia` acceder a los dos nodos. En cada servidor,
+el despliegue principal debe encontrarse en `/home/guardia`. El workflow instala allí
+`docker-compose.monitor.yml` y un `.env.monitor` con permisos `600`, crea
+`datos/monitor` y levanta el servicio con la imagen exacta del commit. El Compose
+principal no necesita contener previamente el servicio `monitor`, pero sí debe definir
+la red `guardia-node` y los servicios que se van a supervisar.
+
 ## Instalación
 
 ### Instalación automática

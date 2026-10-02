@@ -1,0 +1,215 @@
+name: Build, publish and deploy
+
+on:
+  push:
+    branches:
+      - produccion
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: carvalogic.ddns.net:15000
+  IMAGE_NAME: monitor
+  DEPLOY_HOST_1: srv-guardia-01
+  DEPLOY_HOST_2: srv-guardia-02
+  DEPLOY_USER: guardia
+  DEPLOY_PATH: /home/guardia
+  COMPOSE_SERVICE: monitor
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s . -p 'test_*.py'
+
+  build_and_push:
+    name: Build and publish Docker image
+    runs-on: ubuntu-latest
+    needs: test
+    environment: Compilacion_Self_hosted
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate registry credentials
+        shell: bash
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          if [[ -z "$REGISTRY_USERNAME" ]]; then
+            echo "::error::REGISTRY_USERNAME is not configured in the Compilacion_Self_hosted environment or repository secrets."
+            exit 1
+          fi
+          if [[ -z "$REGISTRY_PASSWORD" ]]; then
+            echo "::error::REGISTRY_PASSWORD is not configured in the Compilacion_Self_hosted environment or repository secrets."
+            exit 1
+          fi
+
+      - name: Log in to private registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Set image reference
+        id: image
+        shell: bash
+        run: echo "ref=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.ref }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy sequentially to IONOS
+    runs-on: ubuntu-latest
+    needs: build_and_push
+    environment: Compilacion_Self_hosted
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate SSH configuration
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          MONITOR_TELEGRAM_BOT_TOKEN: ${{ secrets.MONITOR_TELEGRAM_BOT_TOKEN }}
+          MONITOR_TELEGRAM_CHAT_ID: ${{ secrets.MONITOR_TELEGRAM_CHAT_ID }}
+        run: |
+          if [[ -z "$SSH_PRIVATE_KEY" ]]; then
+            echo "::error::SSH_PRIVATE_KEY is not configured."
+            exit 1
+          fi
+          if [[ -z "$SSH_KNOWN_HOSTS" ]]; then
+            echo "::error::SSH_KNOWN_HOSTS must contain srv-guardia-01 and srv-guardia-02."
+            exit 1
+          fi
+          if [[ -z "$MONITOR_TELEGRAM_BOT_TOKEN" ]]; then
+            echo "::error::MONITOR_TELEGRAM_BOT_TOKEN is not configured."
+            exit 1
+          fi
+          if [[ -z "$MONITOR_TELEGRAM_CHAT_ID" ]]; then
+            echo "::error::MONITOR_TELEGRAM_CHAT_ID is not configured."
+            exit 1
+          fi
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Prepare private monitor environment
+        shell: bash
+        env:
+          MONITOR_TELEGRAM_BOT_TOKEN: ${{ secrets.MONITOR_TELEGRAM_BOT_TOKEN }}
+          MONITOR_TELEGRAM_CHAT_ID: ${{ secrets.MONITOR_TELEGRAM_CHAT_ID }}
+        run: |
+          umask 077
+          printf 'MONITOR_TELEGRAM_BOT_TOKEN=%s\nMONITOR_TELEGRAM_CHAT_ID=%s\n' \
+            "$MONITOR_TELEGRAM_BOT_TOKEN" "$MONITOR_TELEGRAM_CHAT_ID" \
+            > "$RUNNER_TEMP/monitor.env"
+
+      - name: Deploy node 1
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ env.DEPLOY_HOST_1 }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          IMAGE_REF: ${{ needs.build_and_push.outputs.image }}
+        run: |
+          scp deploy/docker-compose.monitor.yml \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/docker-compose.monitor.yml.new"
+          scp "$RUNNER_TEMP/monitor.env" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/.env.monitor.new"
+          printf '%s' "$REGISTRY_PASSWORD" | ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s -- \
+            "$DEPLOY_PATH" "$COMPOSE_SERVICE" "$IMAGE_REF" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          chmod 600 .env.monitor.new
+          mv .env.monitor.new .env.monitor
+          mv docker-compose.monitor.yml.new docker-compose.monitor.yml
+          mkdir -p datos/monitor
+          override_file=$(mktemp)
+          trap 'rm -f "$override_file"' EXIT
+          printf 'services:\n  %s:\n    image: %s\n' "$2" "$3" > "$override_file"
+          compose=(docker compose -f docker-compose.yml -f docker-compose.monitor.yml -f "$override_file")
+          "${compose[@]}" pull "$2"
+          "${compose[@]}" up -d --force-recreate "$2"
+          container_id=$("${compose[@]}" ps -q "$2")
+          test -n "$container_id"
+          test "$(docker inspect --format='{{.Config.Image}}' "$container_id")" = "$3"
+          REMOTE
+
+      - name: Deploy node 2
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ env.DEPLOY_HOST_2 }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          IMAGE_REF: ${{ needs.build_and_push.outputs.image }}
+        run: |
+          scp deploy/docker-compose.monitor.yml \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/docker-compose.monitor.yml.new"
+          scp "$RUNNER_TEMP/monitor.env" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/.env.monitor.new"
+          printf '%s' "$REGISTRY_PASSWORD" | ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s -- \
+            "$DEPLOY_PATH" "$COMPOSE_SERVICE" "$IMAGE_REF" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          chmod 600 .env.monitor.new
+          mv .env.monitor.new .env.monitor
+          mv docker-compose.monitor.yml.new docker-compose.monitor.yml
+          mkdir -p datos/monitor
+          override_file=$(mktemp)
+          trap 'rm -f "$override_file"' EXIT
+          printf 'services:\n  %s:\n    image: %s\n' "$2" "$3" > "$override_file"
+          compose=(docker compose -f docker-compose.yml -f docker-compose.monitor.yml -f "$override_file")
+          "${compose[@]}" pull "$2"
+          "${compose[@]}" up -d --force-recreate "$2"
+          container_id=$("${compose[@]}" ps -q "$2")
+          test -n "$container_id"
+          test "$(docker inspect --format='{{.Config.Image}}' "$container_id")" = "$3"
+          REMOTE
+
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/monitor.env"
