@@ -1,0 +1,14 @@
+{
+  "name": "guardia",
+  "compose_files": ["/deployment/docker-compose.yml"],
+  "project_directory": "/deployment",
+  "project_name": "guardia",
+  "profiles": [],
+  "excluded_services": [],
+  "embedder_service": "embedder-server",
+  "embedder_health_url": "http://embedder-server:8080/health",
+  "embedder_health_timeout": 15,
+  "state_file": "/data/config.state.json",
+  "telegram_bot_token": "",
+  "telegram_chat_id": ""
+}

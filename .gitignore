@@ -1,0 +1,8 @@
+config.json
+*.state.json
+*.lock
+*.tmp
+*.log
+__pycache__/
+crontab.backup
+crontab-desinstalacion-*.backup

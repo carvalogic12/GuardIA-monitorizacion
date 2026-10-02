@@ -1,0 +1,12 @@
+{
+  "name": "guardia-produccion",
+  "compose_files": ["/ruta/GuardIA/instalacion/guardia-prod/docker-compose.yml"],
+  "project_name": "",
+  "profiles": [],
+  "excluded_services": [],
+  "embedder_service": "embedder-server",
+  "embedder_health_url": "http://127.0.0.1:8081/health",
+  "embedder_health_timeout": 15,
+  "telegram_bot_token": "",
+  "telegram_chat_id": ""
+}
