@@ -91,7 +91,7 @@ jobs:
 
   deploy:
     name: Deploy sequentially to IONOS
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     needs: build_and_push
     environment: Compilacion_Self_hosted
     steps:
@@ -173,7 +173,7 @@ jobs:
           override_file=$(mktemp)
           trap 'rm -f "$override_file"' EXIT
           printf 'services:\n  %s:\n    image: %s\n' "$2" "$3" > "$override_file"
-          compose=(docker compose -f docker-compose.yml -f docker-compose.monitor.yml -f "$override_file")
+          compose=(docker compose --env-file .env --env-file .env.monitor -f docker-compose.yml -f docker-compose.monitor.yml -f "$override_file")
           "${compose[@]}" pull "$2"
           "${compose[@]}" up -d --force-recreate "$2"
           container_id=$("${compose[@]}" ps -q "$2")
@@ -208,7 +208,7 @@ jobs:
           override_file=$(mktemp)
           trap 'rm -f "$override_file"' EXIT
           printf 'services:\n  %s:\n    image: %s\n' "$2" "$3" > "$override_file"
-          compose=(docker compose -f docker-compose.yml -f docker-compose.monitor.yml -f "$override_file")
+          compose=(docker compose --env-file .env --env-file .env.monitor -f docker-compose.yml -f docker-compose.monitor.yml -f "$override_file")
           "${compose[@]}" pull "$2"
           "${compose[@]}" up -d --force-recreate "$2"
           container_id=$("${compose[@]}" ps -q "$2")
