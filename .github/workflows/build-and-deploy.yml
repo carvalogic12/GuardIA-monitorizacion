@@ -100,9 +100,9 @@ jobs:
         shell: bash
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
           MONITOR_TELEGRAM_BOT_TOKEN: ${{ secrets.MONITOR_TELEGRAM_BOT_TOKEN }}
-          MONITOR_TELEGRAM_CHAT_ID: ${{ secrets.MONITOR_TELEGRAM_CHAT_ID }}
+          MONITOR_TELEGRAM_CHAT_ID: ${{ vars.MONITOR_TELEGRAM_CHAT_ID }}
         run: |
           if [[ -z "$SSH_PRIVATE_KEY" ]]; then
             echo "::error::SSH_PRIVATE_KEY is not configured."
@@ -125,7 +125,7 @@ jobs:
         shell: bash
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
         run: |
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
@@ -137,7 +137,7 @@ jobs:
         shell: bash
         env:
           MONITOR_TELEGRAM_BOT_TOKEN: ${{ secrets.MONITOR_TELEGRAM_BOT_TOKEN }}
-          MONITOR_TELEGRAM_CHAT_ID: ${{ secrets.MONITOR_TELEGRAM_CHAT_ID }}
+          MONITOR_TELEGRAM_CHAT_ID: ${{ vars.MONITOR_TELEGRAM_CHAT_ID }}
         run: |
           umask 077
           printf 'MONITOR_TELEGRAM_BOT_TOKEN=%s\nMONITOR_TELEGRAM_CHAT_ID=%s\n' \

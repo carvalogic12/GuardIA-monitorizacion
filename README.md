@@ -54,14 +54,19 @@ componente privilegiado y no ejecutar código ajeno.
 4. despliega y verifica primero `srv-guardia-01`;
 5. solo si el primer nodo termina correctamente, despliega `srv-guardia-02`.
 
-El entorno de GitHub `Compilacion_Self_hosted` debe proporcionar:
+El entorno de GitHub `Compilacion_Self_hosted` debe proporcionar estos secretos:
 
 ```text
 REGISTRY_USERNAME
 REGISTRY_PASSWORD
 SSH_PRIVATE_KEY
-SSH_KNOWN_HOSTS
 MONITOR_TELEGRAM_BOT_TOKEN
+```
+
+Y estas variables de entorno no sensibles:
+
+```text
+SSH_KNOWN_HOSTS
 MONITOR_TELEGRAM_CHAT_ID
 ```
 
