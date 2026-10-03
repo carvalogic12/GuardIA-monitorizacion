@@ -15,7 +15,7 @@ permissions:
 
 env:
   REGISTRY: carvalogic.ddns.net:15000
-  IMAGE_NAME: monitor
+  IMAGE_NAME: guardia-monitor
   DEPLOY_HOST_1: 31.70.128.217
   DEPLOY_HOST_2: 31.70.128.80
   DEPLOY_HOST_ALIAS_1: srv-guardia-01
