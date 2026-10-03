@@ -1,0 +1,1 @@
+TELEGRAM_BOT_TOKEN=8416206711:AAFSFzRMszt1RqbVCOygPYRrUm-JCodPclI  python3 obtener_chat_ids.py
